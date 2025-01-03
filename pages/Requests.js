@@ -31,7 +31,6 @@ const Requests = () => {
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState([]);
 
-  // Fetch all requests initially
   useEffect(() => {
     fetchRequests();
   }, []);
@@ -42,54 +41,64 @@ const Requests = () => {
       .select("*");
     if (!error) {
       setRequests(requests);
-      setFilteredRequests(requests); // Initialize filtered requests with all data
+      setFilteredRequests(requests);
     }
   };
 
-  // Watch for changes in filter values to reset table if filters are cleared
-  useEffect(() => {
-    if (!filterName && !filterPhoneNumber) {
-      setFilteredRequests(requests);
-    }
-  }, [filterName, filterPhoneNumber, requests]);
-
-  // Handle filter logic on button click
   const handleFilter = () => {
     const filteredData = requests.filter(
       (request) =>
-        (!filterName || request.name === filterName) &&
-        (!filterPhoneNumber || request.phone_number === filterPhoneNumber)
+        (!filterName || request.name.includes(filterName)) &&
+        (!filterPhoneNumber || request.phone_number.includes(filterPhoneNumber))
     );
     setFilteredRequests(filteredData);
   };
 
-  // Handle adding new request
   const handleSave = async () => {
     const values = await form.validateFields();
-    const { error } = await supabase
-      .from("sanal_khuselt")
-      .insert([
-        { ...values, extras: fileList.map((file) => file.name).join(", ") },
-      ]);
 
-    if (!error) {
-      setIsModalVisible(false);
-      form.resetFields();
-      setFileList([]);
-      fetchRequests(); // Refresh the requests data after adding a new entry
+    const uploadedFiles = [];
+    for (const file of fileList) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("bucket", "uploads");
+      formData.append("fileName", `${Date.now()}-${file.name}`);
+
+      console.log("file:", file);
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        uploadedFiles.push(result.fileUrl);
+
+        const { error } = await supabase
+          .from("sanal_khuselt")
+          .insert([{ ...values, extras: uploadedFiles.join(", ") }]);
+
+        if (!error) {
+          setIsModalVisible(false);
+          form.resetFields();
+          setFileList([]);
+          fetchRequests();
+        }
+
+      } else {
+        console.error("File upload failed:", result.error);
+      }
     }
+
+    
   };
 
-  // Handle file change for document uploads
   const handleFileChange = (info) => {
-    if (info.file.status === "done") {
-      setFileList([...fileList, info.file.originFileObj]);
-    } else if (info.file.status === "removed") {
-      setFileList(fileList.filter((file) => file.name !== info.file.name));
+    if (info.file.status !== "uploading") {
+      setFileList(info.fileList.map((file) => file.originFileObj || file));
     }
   };
 
-  // Handle export to Excel
   const handleExport = () => {
     const columnMapping = {
       id: "Өргөдөл ID",
@@ -98,7 +107,7 @@ const Requests = () => {
       name: "Нэр",
       City: "Аймаг Сум",
       phone_number: "Утасны Дугаар",
-      reason: "Шалтган",
+      reason: "Шалтгаан",
       status: "Төлөв Байдал",
       extras: "Нэмэлт",
       created_at: "Бүртгэгдсэн Өдөр",
@@ -118,7 +127,6 @@ const Requests = () => {
     XLSX.writeFile(wb, "Filtered_Requests.xlsx");
   };
 
-  // Handle status change
   const handleStatusChange = async (id, newStatus) => {
     const { error } = await supabase
       .from("sanal_khuselt")
@@ -126,7 +134,7 @@ const Requests = () => {
       .match({ id });
 
     if (!error) {
-      fetchRequests(); // Refresh the requests data after updating status
+      fetchRequests();
     }
   };
 
@@ -154,7 +162,29 @@ const Requests = () => {
         </Select>
       ),
     },
-    { title: "Нэмэлт", dataIndex: "extras", key: "extras" },
+    // { title: "Нэмэлт", dataIndex: "extras", key: "extras" },
+    {
+      title: "Нэмэлт",
+      dataIndex: "extras",
+      key: "extras",
+      render: (text) => {
+        if (text) {
+          const fileUrls = text.split(", ");
+          return fileUrls.map((url, index) => (
+            <a
+              key={index}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: "block", marginBottom: "5px" }}
+            >
+              {url}
+            </a>
+          ));
+        }
+        return null;
+      },
+    },    
     { title: "Бүртгэгдсэн Өдөр", dataIndex: "created_at", key: "created_at" },
   ];
 
@@ -163,16 +193,8 @@ const Requests = () => {
       <Sidebar />
       <div className="flex-grow p-4">
         <h1 className="text-2xl font-bold mb-4">Өргөдлүүд</h1>
-
-        <div
-          className="filter-section"
-          style={{
-            display: "flex",
-            gap: "10px",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ display: "flex", gap: "10px" }}>
+        <div className="filter-section flex gap-4 justify-between">
+          <div className="flex gap-4">
             <Input
               placeholder="Нэр"
               value={filterName}
@@ -185,42 +207,38 @@ const Requests = () => {
               onChange={(e) => setFilterPhoneNumber(e.target.value)}
               style={{ width: "200px" }}
             />
-            <Button onClick={handleFilter} type="default">
-              Шүүх
-            </Button>
+            <Button onClick={handleFilter}>Шүүх</Button>
           </div>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <Button type="default" onClick={() => setIsModalVisible(true)}>
-              Өргөдөл Нэмэх
-            </Button>
+          <div className="flex gap-4">
+            <Button onClick={() => setIsModalVisible(true)}>Өргөдөл Нэмэх</Button>
             <Button
-              type="default"
               onClick={handleExport}
-              disabled={filteredRequests.length === requests.length}
+              disabled={!filteredRequests.length}
             >
               Татаж авах
             </Button>
           </div>
         </div>
-
-        <div className="overflow-x-auto" style={{ marginTop: "16px" }}>
-          <Table
-            columns={columns}
-            dataSource={filteredRequests}
-            rowKey="id"
-            locale={{ emptyText: "Data not found" }}
-          />
-        </div>
-
+        <Table
+          columns={columns}
+          dataSource={filteredRequests}
+          rowKey="id"
+          locale={{ emptyText: "Data not found" }}
+          className="mt-4"
+        />
         <Modal
           title="Өргөдөл Нэмэх"
           open={isModalVisible}
-          onCancel={() => setIsModalVisible(false)}
+          onCancel={() => {
+            setIsModalVisible(false);
+            form.resetFields();
+            setFileList([]);
+          }}
           footer={[
             <Button key="cancel" onClick={() => setIsModalVisible(false)}>
               Болих
             </Button>,
-            <Button key="submit" type="default" onClick={handleSave}>
+            <Button key="submit" onClick={handleSave}>
               Хадгалах
             </Button>,
           ]}
@@ -246,30 +264,25 @@ const Requests = () => {
             >
               <Input />
             </Form.Item>
-            <Form.Item
-              label="Аймаг Сум"
-              name="City"
-              rules={[{ required: true }]}
-            >
+            <Form.Item label="Аймаг Сум" name="City" rules={[{ required: true }]}>
               <Select>
-                {cityOptions.map((city, index) => (
-                  <Select.Option key={index} value={city}>
+                {cityOptions.map((city) => (
+                  <Select.Option key={city} value={city}>
                     {city}
                   </Select.Option>
                 ))}
               </Select>
             </Form.Item>
-            <Form.Item
-              label="Шалтгаан"
-              name="reason"
-              rules={[{ required: true }]}
-            >
+            <Form.Item label="Шалтгаан" name="reason" rules={[{ required: true }]}>
               <Input />
             </Form.Item>
             <Form.Item label="Нэмэлт">
               <Upload
                 beforeUpload={() => false}
-                fileList={fileList}
+                fileList={fileList.map((file) => ({
+                  uid: file.uid || file.name,
+                  name: file.name,
+                }))}
                 onChange={handleFileChange}
                 multiple
               >
