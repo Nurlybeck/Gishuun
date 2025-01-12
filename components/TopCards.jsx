@@ -1,39 +1,3 @@
-// import React from "react";
-
-// const TopCards = () => {
-//   return (
-//     <div className="grid lg:grid-cols-5 gap-4 p-4">
-//       <div className="lg:col-span-2 col-span-1 bg-white flex justify-between w-full border p-4 rounded-lg">
-//         <div className="flex flex-col w-full pb-4">
-//           <p className="text-2xl font-bold">34</p>
-//           <p className="text-gray-600">Шийдэгдсэн Өргөлдлүүд</p>
-//         </div>
-//         <p className="bg-green-200 flex justify-center items-center p-2 rounded-lg">
-//           <span className="text-green-700 text-lg">85%</span>
-//         </p>
-//       </div>
-//       <div className="lg:col-span-2 col-span-1 bg-white flex justify-between w-full border p-4 rounded-lg">
-//         <div className="flex flex-col w-full pb-4">
-//           <p className="text-2xl font-bold">7</p>
-//           <p className="text-gray-600">Шийдэгдэгүй Өргөлдлүүд</p>
-//         </div>
-//         <p className="bg-green-200 flex justify-center items-center p-2 rounded-lg">
-//           <span className="text-green-700 text-lg">15%</span>
-//         </p>
-//       </div>
-//       <div className="bg-white flex justify-between w-full border p-4 rounded-lg">
-//         <div className="flex flex-col w-full pb-4">
-//           <p className="text-2xl font-bold">6</p>
-//           <p className="text-gray-600">Энэ Сарийн Нийт Өргөлдлүүд</p>
-//         </div>
-//         <p className="bg-green-200 flex justify-center items-center p-2 rounded-lg"></p>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default TopCards;
-
 import React, { useEffect, useState } from "react";
 import { supabase } from "../config/supabaseClient";
 import withAuth from "../components/withAuth";
@@ -53,13 +17,13 @@ const TopCards = () => {
         console.error("Error fetching data:", error);
       } else {
         const pending = data.filter(
-          (item) => item.status === "Хүлээгдэж буй"
+          (item) => item.status === "Боловсруулагдаж байгаа"
         ).length;
         const approved = data.filter(
-          (item) => item.status === "Зөвшөөрсөн"
+          (item) => item.status === "Хүлээн авсан"
         ).length;
         const rejected = data.filter(
-          (item) => item.status === "Татгалзсан"
+          (item) => item.status === "Буцаасан"
         ).length;
 
         setPendingCount(pending);
